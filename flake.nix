@@ -10,7 +10,7 @@
       devShell = forAllSystems (system: with import nixpkgs { inherit system;};
         mkShell {
           buildInputs = [
-            python3
+            (python3.withPackages (ps: with ps; [numpy]))
           ];
         }
       );
