@@ -35,7 +35,10 @@ def parseLines(lines):
     for line in lines:
         many_parsed, unread = parseLine(unread+line)
         if many_parsed:
-            print([ parsed.shape[1] if parsed is not None else 0 for parsed in many_parsed])
+            # print([ parsed.shape[1] if parsed is not None else 0 for parsed in many_parsed])
+            if many_parsed[-1] is not None:
+                print("last_address:" , "".join(many_parsed[-1][0, -1].flatten()))
+                print("last_metadata:" , "".join(many_parsed[-1][1, -1].flatten()))
         # print("unread:", unread)
 
 if __name__ == "__main__":
