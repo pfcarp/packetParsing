@@ -21,8 +21,10 @@ std::ostream& operator<<(std::ostream& os, const PacketType& packetType)
     {
         case PacketType::ADDRESS:
             os << "ADDRESS";
+            break;
         case PacketType::METADATA:
             os << "METADATA";
+            break;
     }
     return os;
 }
