@@ -1,5 +1,9 @@
 import re
 import numpy as np
+import matplotlib.pyplot as plt
+
+
+
 
 PACKET_SIZE = 2042
 START_PACKET = '0bb0'
@@ -32,14 +36,47 @@ def parseLine(line: str):
 
 def parseLines(lines):
     unread = ""
+    many_flattened = []
     for line in lines:
         many_parsed, unread = parseLine(unread+line)
+        #create_heatmap(many_parsed)
         if many_parsed:
             # print([ parsed.shape[1] if parsed is not None else 0 for parsed in many_parsed])
             if many_parsed[-1] is not None:
-                print("last_address:" , "".join(many_parsed[-1][0, -1].flatten()))
-                print("last_metadata:" , "".join(many_parsed[-1][1, -1].flatten()))
-        # print("unread:", unread)
+                
+                #print(many_parsed[-1].shape)
+                #print(many_parsed[-1])
+                #print(many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16'))
+                many_flattened=many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16').squeeze()
+                create_heatmap(many_flattened)
+                #print("ADDRESS" , "".join(many_flattened[-1][0, -1]))
+                #print("METADATA" , "".join(many_flattened[-1][1, -1]))
+
+            
+    
+
+def create_heatmap(many_parsed):
+#grab the time embedded in the first 5 bytes of the metadata
+    time = []
+    print(many_parsed)
+    print(many_parsed.shape)      
+    #print(time[0][-5:]) #this gets last 5 bytes of the time
+    
+    for metadata in many_parsed[1]:
+        time.append(metadata[-5:])
+
+    print(time)
+
+    xgrid = (2**20)+1 #this is max timestamp
+    ygrid = np.arrange(many_parsed[0].max()) #0x20001FFFFF #this is max address
+
+
+
+    
+
+
+
+
 
 if __name__ == "__main__":
     import sys
