@@ -18,7 +18,7 @@ def remove_empty_chunks(chunks):
     empty_chunks = np.all(chunks == np.tile('0', chunks.shape), axis=(1, 2))
     return chunks[~empty_chunks]
 
-def parseRawPacket(packet):
+def parseRawPacket(packet,piece=None):
     chunks = np.array(list(packet)).reshape(-1, 8, 2)
     assert chunks.shape[0] == SIZE_RAW_PACKET // 16
     relevant_chunks = remove_empty_chunks(chunks)
@@ -29,53 +29,59 @@ def parseRawPacket(packet):
     #print("metadata shape ",metadata.shape)
     #breakpoint()
     if addresses.shape != metadata.shape:
-        
-        return None
-    return np.array([addresses, metadata])
+        #print("Address and metadata shapes do not match")
+        if addresses.shape[0] > metadata.shape[0]:
+            #print("Address shape is greater than metadata shape")
+            piece = addresses[-1]
+            addresses=addresses[:-1, :, :]
+        else:
+            #print("Metadata shape is greater than address shape")
+            piece = metadata[-1]
+            metadata=metadata[:-1, :, :] 
+    print(addresses.shape," ", metadata.shape)
+    #print(piece)
+    return np.array([addresses, metadata]), piece
 
-def parseLine(line: str):
+def parseLine(line: str, previous_piece=None):
+    piece = previous_piece
+    parsed=[]
+    #take out the spaces in the lines being read
     cleaned_line = re.compile(r'[^0-9a-f]').sub('', line)
+    #do a regex to take out the start and end packet
     packet_regex = re.compile(f'{START_PACKET}(?P<raw>[0-9a-f]{{{SIZE_RAW_PACKET}}}){END_PACKET}')
+    #find all the packets in the cleaned line
     matches = list(packet_regex.finditer(cleaned_line))
+    #add the last unmatched part of the line to the rest of the lines
     last_unmatched = matches[-1].end() if len(matches) > 0 else 0
+    #store the unmatched part of the line for use in the next iteration
     rest = cleaned_line[last_unmatched:]
-    parsed = [ parseRawPacket(match.group('raw')) for match in matches ]
-    #print(parsed.shape)
-    #breakpoint()
-    return parsed, rest
+    #parse the packets to get back the addresses and metadata
+    for match in matches:
+        parsed_packet, piece = parseRawPacket(match.group('raw'), piece)
+        if parsed_packet is not None:
+            parsed.append(parsed_packet)
+
+    return parsed, rest, piece
 
 def parseLines(lines):
     unread = ""
     many_flattened = []
+    #read file line by line
+    piece = None
     for line in lines:
-        many_parsed, unread = parseLine(unread+line)
-        #create_heatmap(many_parsed)
+        many_parsed, unread, piece = parseLine(unread+line, piece)
+        
         if many_parsed:
-            # print([ parsed.shape[1] if parsed is not None else 0 for parsed in many_parsed])
+            #if there are matches in the line and there is an equal shape of addresses and metadata, then flatten the array to be (2,x,16) where x is the number of packets (idealy)
             if many_parsed[-1] is not None:
                 
-                #print(many_parsed[-1].shape)
-                #print(many_parsed[-1])
-                #print(many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16'))
-                
                 many_flattened.append(many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16').squeeze())
-            
-                #many_parsed[0]=many_parsed[0].reshape(many_parsed[0].shape[0:2] + (16,)).view('U16').squeeze()
-                
-                
-                #print("ADDRESS" , "".join(many_flattened[-1][0, -1]))
-                #print("METADATA" , "".join(many_flattened[-1][1, -1]))
-    #print(many_flattened)
-    #extract_time(many_flattened)
-    #convert_address_to_hex(many_flattened)
-    #breakpoint()
+    #extract the timing data from metadata and convert the addresses to hex
     formatted_array=np.array([extract_time(many_flattened),convert_address_to_hex(many_flattened)])
-    #breakpoint()
-    #sparse_heatmap(formatted_array)
-    #binned_heatmap( extract_time(many_flattened),convert_address_to_hex(many_flattened))
+  
     plt.plot(formatted_array[0,::100],formatted_array[1,::100])
     
-    plt.show()
+    #plt.show()
 
 def convert_address_to_hex(many_parsed):
     addresslist = []
