@@ -10,7 +10,7 @@
       devShell = forAllSystems (system: with import nixpkgs { inherit system;};
         mkShell {
           buildInputs = [
-            (python3.withPackages (ps: with ps; [numpy]))
+            (python3.withPackages (ps: with ps; [numpy matplotlib seaborn scipy pandas]))
             gcc
           ];
         }

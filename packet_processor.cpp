@@ -3,10 +3,12 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cstdint>
 
 const std::string START_BYTE = "0bb0";
 const std::string END_BYTE = "045700";
 const uint CHUNK_SIZE = 16;
+
 
 enum class PacketType
 {
@@ -45,6 +47,12 @@ size_t process_packet(const std::string &data, std::string &previous_chunk)
     PacketType previous_packetType;
     size_t valid_pairs = 0;
     PacketType packetType = PacketType::METADATA;
+    std::string StringMetadata = "";
+    //int stream_type;
+    //int axid;
+    uint burst_length;
+    uint timestamp;
+
     for (size_t i = START_BYTE.length(); i < data.length() - END_BYTE.length(); i += CHUNK_SIZE)
     {
         std::string chunk = data.substr(i, CHUNK_SIZE);
@@ -69,11 +77,33 @@ size_t process_packet(const std::string &data, std::string &previous_chunk)
         
         if(packetType == previous_packetType)
         {
-            std::cout << "A glitch detected" << std::endl;
+            continue;
         }
         
         std::cout << packetType << " " << reverse_byte_order(chunk) << std::endl;
+        if(packetType == PacketType::METADATA)
+        {
+            //first 3 bits are stream type
+            //next 32 bits are axid
+            //next 8 bits are Burst lenght
+            //next 20 bits are timestamp
+            //convert string to hex
+            std::stringstream ss;
+            StringMetadata = reverse_byte_order(chunk);
+            
+        
+            std::cout << "stream_type: " << std::hex << StringMetadata.substr(0,1) << std::endl;
+            std::cout << "axid: " << std::hex << StringMetadata.substr(1,8) << std::endl;
+            //std::cout << "burst_length: " << std::hex << StringMetadata.substr(9,1) << std::endl;
+            //std::cout << "timestamp: " << std::hex << StringMetadata.substr(10,6) << std::endl;
+            //stoi(StringMetadata.substr(9,1)) 
+            //stoi(StringMetadata.substr(10,6))
+            burst_length = std::stoi(StringMetadata.substr(9,1),0,16);
+            timestamp = std::stoi(StringMetadata.substr(10,6),0,16);
 
+            std::cout << "burst_length: " << burst_length << std::endl;
+            std::cout << "timestamp: " << timestamp << std::endl;
+        }
         //get the first 2 chars of chunks
         std::string first_two_chars = chunk.substr(0, 2);
 
