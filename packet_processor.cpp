@@ -40,10 +40,11 @@ std::string reverse_byte_order(const std::string &input)
     return result;
 }
 
-size_t process_packet(const std::string &data)
+size_t process_packet(const std::string &data, std::string &previous_chunk)
 {
+    
     size_t valid_pairs = 0;
-    PacketType packetType = PacketType::ADDRESS;
+    PacketType packetType = PacketType::METADATA;
     for (size_t i = START_BYTE.length(); i < data.length() - END_BYTE.length(); i += CHUNK_SIZE)
     {
         std::string chunk = data.substr(i, CHUNK_SIZE);
@@ -53,9 +54,26 @@ size_t process_packet(const std::string &data)
             continue; // Skip zero chunks
         }
 
+        //print chunk
+        //std::cout << chunk << std::endl;
+        //std::cout << "previous_chunk: " << previous_chunk << std::endl;
+        
+        // if(chunk == previous_chunk)
+        // {
+        //     std::cout << "Duplicate chunk found: " << chunk << std::endl;
+        //     previous_chunk = "";
+        //     continue;
+        // }
+
+        packetType = (packetType == PacketType::ADDRESS && (reverse_byte_order(chunk)).substr(0, 2)!="00") ? PacketType::METADATA : (packetType == PacketType::METADATA && (reverse_byte_order(chunk)).substr(0, 2)=="00") ? PacketType::ADDRESS : PacketType::METADATA;
         std::cout << packetType << " " << reverse_byte_order(chunk) << std::endl;
 
-        packetType = (packetType == PacketType::ADDRESS) ? PacketType::METADATA : PacketType::ADDRESS;
+        //get the first 2 chars of chunks
+        std::string first_two_chars = chunk.substr(0, 2);
+
+        
+        //assign chunk to previous_chunk for next iteration
+        previous_chunk = chunk;
     }
 
     std::cout << "---" << std::endl;
@@ -67,7 +85,7 @@ std::pair<size_t, size_t> process_all_packets(const std::string &data)
     size_t packet_count = 0;
     size_t total_valid_pairs = 0;
     size_t current = 0;
-
+    std::string previous_chunk="";
     while (true)
     {
         size_t packet_start = data.find("0bb0", current);
@@ -82,7 +100,9 @@ std::pair<size_t, size_t> process_all_packets(const std::string &data)
 
         if (packet_end - packet_start == 2042)
         {
-            total_valid_pairs += process_packet(data.substr(packet_start, 2042));
+        
+            total_valid_pairs += process_packet(data.substr(packet_start, 2042), previous_chunk);
+            //std::cout << "leftover: " << previous_chunk << std::endl;
             packet_count++;
         }
 

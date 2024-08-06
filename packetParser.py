@@ -18,32 +18,41 @@ def remove_empty_chunks(chunks):
     empty_chunks = np.all(chunks == np.tile('0', chunks.shape), axis=(1, 2))
     return chunks[~empty_chunks]
 
-def parseRawPacket(packet,piece=None):
+
+def remove_duplicates(raw, extra_address):
+    print(raw.shape)
+    print(extra_address.shape)
+    with_extra = np.concatenate([extra_address, raw], axis=0)
+    mismatching_subsequents = np.any(with_extra[:-1] != with_extra[1:], axis=(1,2))
+    with_trues = np.concatenate([mismatching_subsequents, [True]],axis=0)
+    print(with_trues)
+    return with_extra[with_trues]
+
+def parseRawPacket(packet, added_address, previous_size_mismatched):
+    added_address = np.reshape(added_address, (-1, 8, 2))
+    
     chunks = np.array(list(packet)).reshape(-1, 8, 2)
+    #breakpoint()
     assert chunks.shape[0] == SIZE_RAW_PACKET // 16
     relevant_chunks = remove_empty_chunks(chunks)
     reversed = np.flip(relevant_chunks, axis=1)
-    addresses = reversed[0::2]
-    metadata = reversed[1::2]
-    #print("address shape " , addresses.shape)
-    #print("metadata shape ",metadata.shape)
-    #breakpoint()
-    if addresses.shape != metadata.shape:
-        #print("Address and metadata shapes do not match")
-        if addresses.shape[0] > metadata.shape[0]:
-            #print("Address shape is greater than metadata shape")
-            piece = addresses[-1]
-            addresses=addresses[:-1, :, :]
-        else:
-            #print("Metadata shape is greater than address shape")
-            piece = metadata[-1]
-            metadata=metadata[:-1, :, :] 
-    print(addresses.shape," ", metadata.shape)
+    with_added_address = remove_duplicates(reversed, added_address)
+    mismatched_checked = with_added_address[~previous_size_mismatched:]
+    addresses = mismatched_checked[0::2]
+    metadata = mismatched_checked[1::2]
+    # print("address shape " , addresses.shape)
+    # print("metadata shape ",metadata.shape)
+    if (added_address is []) or (addresses.shape is not metadata.shape):
+        breakpoint()
+    extra_address = addresses[-1]
+    size_mismatch = addresses.shape != metadata.shape
+    if size_mismatch:
+        addresses=addresses[:-1]
+    #print(addresses.shape," ", metadata.shape)
     #print(piece)
-    return np.array([addresses, metadata]), piece
+    return np.array([addresses, metadata]), extra_address, size_mismatch
 
-def parseLine(line: str, previous_piece=None):
-    piece = previous_piece
+def parseLine(line: str, extra_address, previous_size_mismatched):
     parsed=[]
     #take out the spaces in the lines being read
     cleaned_line = re.compile(r'[^0-9a-f]').sub('', line)
@@ -57,31 +66,37 @@ def parseLine(line: str, previous_piece=None):
     rest = cleaned_line[last_unmatched:]
     #parse the packets to get back the addresses and metadata
     for match in matches:
-        parsed_packet, piece = parseRawPacket(match.group('raw'), piece)
-        if parsed_packet is not None:
-            parsed.append(parsed_packet)
-
-    return parsed, rest, piece
+        parsed_packet, extra_address, previous_size_mismatched = parseRawPacket(match.group('raw'), extra_address, previous_size_mismatched)
+        print(extra_address)
+        parsed.append(parsed_packet)
+    if len(parsed) > 1:
+        parsed = np.concatenate(parsed, axis=1)
+    return parsed, rest, extra_address, previous_size_mismatched
 
 def parseLines(lines):
     unread = ""
     many_flattened = []
     #read file line by line
-    piece = None
+    extra_address = []
+    previous_size_mismatched = True
     for line in lines:
-        many_parsed, unread, piece = parseLine(unread+line, piece)
-        
-        if many_parsed:
-            #if there are matches in the line and there is an equal shape of addresses and metadata, then flatten the array to be (2,x,16) where x is the number of packets (idealy)
-            if many_parsed[-1] is not None:
-                
-                many_flattened.append(many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16').squeeze())
+        many_parsed, unread, extra_address, previous_size_mismatched = parseLine(unread+line, extra_address, previous_size_mismatched)
+        # shape of many_parsed is (2, -1, 8, 2)
+        #print(many_parsed)
+        hexes = np.reshape(many_parsed, (2, -1, 16)).astype("U1")
+        if hexes.shape[1] != 0:
+            many_flattened.append(hexes)
+        # if len(many_parsed) > 0:
+        #     #if there are matches in the line and there is an equal shape of addresses and metadata, then flatten the array to be (2,x,16) where x is the number of packets (idealy)
+        #     many_flattened.append(many_parsed[-1].reshape(many_parsed[-1].shape[0:2] + (16,)).view('U16').squeeze())
     #extract the timing data from metadata and convert the addresses to hex
-    formatted_array=np.array([extract_time(many_flattened),convert_address_to_hex(many_flattened)])
-  
-    plt.plot(formatted_array[0,::100],formatted_array[1,::100])
+    addresses, metadata = np.concatenate(many_flattened, axis=1)  
+    np.set_printoptions(threshold=sys.maxsize)
+
+    print(addresses)
+    plt.plot(extract_time(metadata),hexes_to_ints(addresses))
     
-    #plt.show()
+    plt.show()
 
 def convert_address_to_hex(many_parsed):
     addresslist = []
@@ -90,25 +105,27 @@ def convert_address_to_hex(many_parsed):
         for address in addresses[0]:
             addresslist.append(int("0x"+address,0))
     addressnp = np.array(addresslist)
-    #np.set_printoptions(threshold=sys.maxsize)
-    #print(addressnp)
+    np.set_printoptions(threshold=sys.maxsize)
+    print("address:" ,addressnp)
     return addressnp
 
-def extract_time(many_parsed):
+def hexes_to_ints(array, base=16):
+    return np.array([int(hex, base=base) for hex in array.view(f'U{array.shape[1]}').ravel()])
+
+def extract_time(metadata):
 #grab the time embedded in the first 5 bytes of the metadata
-    times = []
-    
-    for metadata in many_parsed:
-        for meta in metadata[1]:
-            times.append("0x"+meta[-5:]) 
+    # for metadata in many_parsed:
+    #     for meta in metadata[1]:
+    #         times.append(meta[-5:]
+    #         )     breakpoint()
+
 
     #treat time as hex and convert to decimal
-    timelist = [int(time,0) for time in times]
+    time = hexes_to_ints(metadata[:, -5:])
     #print(time)
     #then get the first element of the time array and subtract all the elements of the array from it
     #if the time is negative, then add 2^20 to it and all preceding elements
     #Or if the element before it is greater than it, then add 2^20 to it and all preceding elements
-    time = np.array(timelist)
     subtractor=time[0]
     max_value=2**20
     overflow_count = 0
@@ -121,8 +138,8 @@ def extract_time(many_parsed):
         
         # Add the overflow correction
         time[i] += overflow_count * max_value
-    #np.set_printoptions(threshold=sys.maxsize)
-    #print(time)
+    # np.set_printoptions(threshold=sys.maxsize)
+    # print("time: ", time)
     return time
 
 
