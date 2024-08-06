@@ -42,7 +42,7 @@ std::string reverse_byte_order(const std::string &input)
 
 size_t process_packet(const std::string &data, std::string &previous_chunk)
 {
-    
+    PacketType previous_packetType;
     size_t valid_pairs = 0;
     PacketType packetType = PacketType::METADATA;
     for (size_t i = START_BYTE.length(); i < data.length() - END_BYTE.length(); i += CHUNK_SIZE)
@@ -66,6 +66,12 @@ size_t process_packet(const std::string &data, std::string &previous_chunk)
         // }
 
         packetType = (packetType == PacketType::ADDRESS && (reverse_byte_order(chunk)).substr(0, 2)!="00") ? PacketType::METADATA : (packetType == PacketType::METADATA && (reverse_byte_order(chunk)).substr(0, 2)=="00") ? PacketType::ADDRESS : PacketType::METADATA;
+        
+        if(packetType == previous_packetType)
+        {
+            std::cout << "A glitch detected" << std::endl;
+        }
+        
         std::cout << packetType << " " << reverse_byte_order(chunk) << std::endl;
 
         //get the first 2 chars of chunks
@@ -74,6 +80,7 @@ size_t process_packet(const std::string &data, std::string &previous_chunk)
         
         //assign chunk to previous_chunk for next iteration
         previous_chunk = chunk;
+        previous_packetType = packetType;
     }
 
     std::cout << "---" << std::endl;
