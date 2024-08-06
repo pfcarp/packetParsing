@@ -1,9 +1,11 @@
-Run Entire Pipeline:
-	- Have nix and run nix develop
-	- Compile packet_processor.cpp
-	- execute Run.sh
+Run Entire Pipeline
 
-What is in the repo:
+	1. Have nix and run nix develop
+	2. Compile packet_processor.cpp
+	3. execute Run.sh
+
+What is in the repo
+
 	- Test Data:
 		- raw_data.txt
 			- A single shot of the entire bandwidth.c run
