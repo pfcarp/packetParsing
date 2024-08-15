@@ -1,0 +1,6 @@
+*.txt
+*.pdf
+*.png
+packet_processor
+.*
+!.gitignore
