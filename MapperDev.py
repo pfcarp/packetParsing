@@ -38,45 +38,40 @@ def adjust_timestamps(data):
     return adjusted_data
 
 
-def plot_data(data):
-    accesses = data.groupby(["Address", "Stream Type"]).count().reset_index().fillna(0)
+def plot_data(data, prefix=""):
+    accesses = (
+        data.groupby(["Address", "Stream Type"])
+        .count()
+        .reset_index()
+        .fillna(0)
+        .rename(columns={"Adjusted Timestamp": "Access Count"})
+    )
     accesses[["Address"]] = accesses[["Address"]].map(lambda x: f"0x{x:x}")
     pivoted_accesses = accesses.pivot(
-        index="Address", columns="Stream Type", values="Adjusted Timestamp"
+        index="Address", columns="Stream Type", values="Access Count"
     ).fillna(0)
     g = sns.heatmap(pivoted_accesses, cmap="viridis")
     plt.tight_layout()
-    plt.savefig("heatmap_access_type.png")
+    plt.savefig(prefix + "heatmap_access_type.png")
     # plt.show()
+    plt.close()
 
     g = sns.relplot(
         data=data,
         y="Address",
         x="Adjusted Timestamp",
         hue="Stream Type",
+        style="Stream Type",
+        markers=["x", "+"],
     )
     plt.ticklabel_format(style="plain", axis="y", useOffset=False)
     # format the labels with f-strings
     for ax in g.axes.flat:
         ax.yaxis.set_major_formatter(tkr.FuncFormatter(lambda y, p: f"0x{int(y):x}"))
     plt.tight_layout()
-    plt.savefig("scatterplot.png")
+    plt.savefig(prefix + "scatterplot.png")
     # plt.show()
-
-    # TODO: The displot has a very weird output
-    # g = sns.displot(
-    #     data=data,
-    #     y="Address",
-    #     x="Adjusted Timestamp",
-    #     hue="Stream Type",
-    # )
-    # plt.ticklabel_format(style="plain", axis="y", useOffset=False)
-    # # format the labels with f-strings
-    # for ax in g.axes.flat:
-    #    ax.yaxis.set_major_formatter(tkr.FuncFormatter(lambda y, p: f"0x{int(y):x}"))
-    # plt.tight_layout()
-    # plt.savefig("histplot.png")
-    # # plt.show()
+    plt.close()
 
 
 def read_data_from_file(filename):
@@ -101,6 +96,10 @@ def main():
     parsed_data = parse_data(data)
     adjusted_data = adjust_timestamps(parsed_data)
     plot_data(adjusted_data)
+    adjusted_data[["Address"]] = adjusted_data[["Address"]].map(
+        lambda x: x & ~(2**12 - 1)
+    )
+    plot_data(adjusted_data, "pages_")
 
 
 if __name__ == "__main__":
