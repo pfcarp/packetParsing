@@ -5,6 +5,7 @@ import sys
 import subprocess
 import seaborn as sns
 import pandas as pd
+import numpy as np 
 
 MAX_TIMESTAMP = 0x100000
 sns.set_theme(style="white", palette="colorblind")
@@ -20,14 +21,23 @@ def parse_data(data):
 
 
 def adjust_timestamps(data):
+    overflow_threshold=(2**20)//2
     adjusted_data = []
-    overflow_count = 0
+    total_overflow = 0
     prev_timestamp = None
-
+    
     for address, stream_type, timestamp in data:
-        if prev_timestamp is not None and timestamp < prev_timestamp:
-            overflow_count += 1
-        adjusted_timestamp = timestamp + (overflow_count * MAX_TIMESTAMP)
+        if prev_timestamp is not None:
+            diff = timestamp - prev_timestamp
+            if diff < -overflow_threshold:
+                # Overflow detected
+                overflows = (abs(diff) + MAX_TIMESTAMP - 1) // MAX_TIMESTAMP
+                total_overflow += overflows * MAX_TIMESTAMP
+            elif diff > overflow_threshold:
+                # Possible backwards time jump without overflow
+                total_overflow = max(0, total_overflow - MAX_TIMESTAMP)
+        
+        adjusted_timestamp = timestamp + total_overflow
         adjusted_data.append((address, stream_type, adjusted_timestamp))
         prev_timestamp = timestamp
 
@@ -62,7 +72,7 @@ def plot_data(data, prefix=""):
         x="Adjusted Timestamp",
         hue="Stream Type",
         style="Stream Type",
-        markers=["x", "+"],
+        markers=["o", "+"],
     )
     plt.ticklabel_format(style="plain", axis="y", useOffset=False)
     # format the labels with f-strings

@@ -1,29 +1,79 @@
 import re
 import matplotlib.pyplot as plt
 import sys
+import subprocess
+
+MAX_TIMESTAMP = 0x100000
 
 def parse_data(data):
-    pattern = r'ADDRESS (\w+)\nMETADATA \w+\nstream_type: \d+\naxid: \w+\nburst_length: \d+\ntimestamp: (\w+)'
+    pattern = r'ADDRESS (\w+)\nMETADATA \w+\nstream_type: (\d+)\naxid: \w+\nburst_length: \d+\ntimestamp: (\w+)'
     matches = re.findall(pattern, data, re.MULTILINE)
-    return [(int(address, 16), int(timestamp, 16)) for address, timestamp in matches]
+    
+    return [(int(address, 16), int(stream_type), int(timestamp, 16)) for address, stream_type, timestamp in matches]
+
+def adjust_timestamps(data):
+    overflow_threshold=(2**20)//2
+    adjusted_data = []
+    total_overflow = 0
+    prev_timestamp = None
+    
+    for address, stream_type, timestamp in data:
+        if prev_timestamp is not None:
+            diff = timestamp - prev_timestamp
+            if diff < -overflow_threshold:
+                # Overflow detected
+                overflows = (abs(diff) + MAX_TIMESTAMP - 1) // MAX_TIMESTAMP
+                total_overflow += overflows * MAX_TIMESTAMP
+            elif diff > overflow_threshold:
+                # Possible backwards time jump without overflow
+                total_overflow = max(0, total_overflow - MAX_TIMESTAMP)
+        
+        adjusted_timestamp = timestamp + total_overflow
+        adjusted_data.append((address, stream_type, adjusted_timestamp))
+        prev_timestamp = timestamp
+
+    return adjusted_data
 
 def plot_data(data):
-    addresses, timestamps = zip(*data)
+    addresses_type2 = []
+    timestamps_type2 = []
+    addresses_type4 = []
+    timestamps_type4 = []
+    addresses_other = []
+    timestamps_other = []
+
     
-    plt.figure(figsize=(10, 6))
-    plt.scatter(timestamps, addresses, marker='o')
-    plt.xlabel('Timestamp (hex)')
+
+    for address, stream_type, timestamp in data:
+        
+        if stream_type == 2:
+            addresses_type2.append(address)
+            timestamps_type2.append(timestamp)
+        elif stream_type == 4:
+            addresses_type4.append(address)
+            timestamps_type4.append(timestamp)
+        else:
+            addresses_other.append(address)
+            timestamps_other.append(timestamp)
+
+    plt.figure(figsize=(12, 6))
+    if addresses_type2:
+        plt.scatter(timestamps_type2, addresses_type2, color='blue', marker='o', label='Stream Type 2')
+    if addresses_type4:
+        plt.scatter(timestamps_type4, addresses_type4, color='red', marker='x', label='Stream Type 4')
+    if addresses_other:
+        plt.scatter(timestamps_other, addresses_other, color='gray', marker='o', label='Other Stream Types')
+
+    plt.xlabel('Adjusted Timestamp')
     plt.ylabel('Address (hex)')
-    plt.title('Address vs Timestamp')
+    plt.title('Address vs Timestamp (Color-coded by Stream Type)')
     
-    # Format x-axis and y-axis labels as hexadecimal
-    plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x):x}'))
+    # Format y-axis labels as hexadecimal
     plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, p: f'{int(y):x}'))
     
+    plt.legend()
     plt.tight_layout()
     plt.show()
-
-# Example usage
 
 def read_data_from_file(filename):
     try:
@@ -44,7 +94,8 @@ def main():
     input_file = sys.argv[1]
     data = read_data_from_file(input_file)
     parsed_data = parse_data(data)
-    plot_data(parsed_data)
+    adjusted_data = adjust_timestamps(parsed_data)
+    plot_data(adjusted_data)
 
 if __name__ == "__main__":
     main()
