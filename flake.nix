@@ -1,5 +1,5 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:
     let
@@ -10,7 +10,8 @@
       devShell = forAllSystems (system: with import nixpkgs { inherit system;};
         mkShell {
           buildInputs = [
-            (python3.withPackages (ps: with ps; [numpy matplotlib seaborn scipy pandas]))
+            python311Packages.numpy
+            (python311.withPackages (ps: with ps; [matplotlib seaborn pandas]))
             gcc
           ];
         }
