@@ -1,13 +1,16 @@
 #!/bin/bash
 #run packet_processor with the input file
 ./packetStripper $1Debugger.txt $1Debugger-Stripped.txt
-sleep 2
+wait
 ./packetparser $1Debugger-Stripped.txt > $1Debugger-Parsed.txt
-sleep 2
+wait
 ./h2bconv $1Debugger-Parsed.txt $1Debugger-Parsed.bin
 cd ./deformat
 ./deformat $2 ../$1Debugger-Parsed.bin
-sleep 2
-cd ../ETM_data_parser
-./ctrace ../deformat/trc_$3.out
+wait
 cd ..
+wait
+cp ./deformat/trc_$3.dat /home/Patrick/SpinalTemplateSbt/sw/inputs/trace.bin
+wait
+cd /home/Patrick/SpinalTemplateSbt/sw/
+./parser.out

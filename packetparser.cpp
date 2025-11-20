@@ -203,11 +203,12 @@ std::string processHexData(const std::string& data) {
         // it will naturally grab characters from the next line since
         // we already concatenated all lines into processed string
         // Only pad with zeros if we're at the very end and still short
-        if (chunk.length() < 16 && i + 16 >= processed.length()) {
-            while (chunk.length() < 16) {
-                chunk += "0";
-            }
-        }
+
+        // if (chunk.length() < 16 && i + 16 >= processed.length()) {
+        //     while (chunk.length() < 16) {
+        //         chunk += "0";
+        //     }
+        // }
         
         // Skip chunks that are all F's
         bool allF = true;
